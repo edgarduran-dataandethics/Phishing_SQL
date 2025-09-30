@@ -1,0 +1,19 @@
+# Phishing SQL Summary
+
+This exploratory SQL analysis examined a publicly available URL phishing dataset to uncover trends and identify common factors within phishing links. The cleaned dataset contained 100,077 rows and 20 columns, including structural URL features such as URL length, redirection count, and symbol count.
+
+## RECOMMENDATIONS: 
+
+Based on the analysis, here are recommendations for identifying phishing attempts:
+* **Check URL length**. mOn average, longer URLs are more likely to be phishing.
+* **Look for uncommon symbols**: Characters like  @, &, *, #, $ appear more often in phishing URLs.
+* **Consider Context:** The existence of symbols or length doesn’t guarantee that it is safe or phishing. Keep safety practices in mind
+  * Verify that the sender is a trusted individual
+  * Confirm that the email contents match your expectation (e.g. requested information, consistent with the sender, etc.)
+  * Ensure that the URL appears to lead to the right destination
+
+## Limitations:
+* This dataset does not include contextual information about the URL (e.g., domain reputation or hosting details), which could improve phishing detection.
+* Feature correlations may differ in real-world data, especially over time or in targeted phishing attempts. This data was from 2020 and a lot can change over the course of 5+ years.
+* Some rare symbols appear exclusively in phishing URLs, but this sample size was too small to be conclusive which means they should be interpreted cautiously.
+
