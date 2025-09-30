@@ -1,0 +1,135 @@
+# ASK
+
+Note that this is a practice project focused on using SQL to complete a full clean and analysis of Phishing data to answer specific business questions. The purpose was to analyze web page URL phishing data to determine which fields in a URL suggest that the URL may be phishing.
+
+## Business Questions:
+* Which field(s) has/have the strongest correlation with the “phishing” field?  Which field(s) has/have the weakest correlation with the “phishing” field?
+* Would you say that the URL length is a strong indicator of whether or not the URL is phishing?  Why or why not?  What metrics do you have to support your answer?
+* Would you say the number of redirections is a strong indicator of whether or not the URL is phishing?  Why or why not?  What metrics do you have to support your answer?
+* Based on your analysis, what advice would you give to others for deciphering whether or not a URL is phishing? 
+
+# PREPARE: 
+Using SQL (BigQuery) only for this analysis.
+
+First, I checked the data types to understand what I was working with and understand if there was anything I needed to deal with. I inspected this on SQL.
+There are 20 columns in the data set. Columns only show structural features such as url_length, n_redirection, and counts of various symbols (n_slash, n_at, etc.). There are no actual urls. Lastly, all of the columns were categorized as integers and since it is mostly structural data, and likely counts, this was fine for the purposes of this analysis. 
+
+Next, I wanted to understand if there were any missing values in the entire table.
+
+SELECT col_name, COUNT(1) nulls_count
+FROM `phishing-473204.Phishing.webpage_phishing` t,
+UNNEST(REGEXP_EXTRACT_ALL(TO_JSON_STRING(t), r'"(\w+)":null')) col_name
+GROUP BY col_name
+
+
+With there being no missing variables, I moved onto the next step of cleaning: Checking individual parts that I would be using. The primary target variable (phishing) was binary: 0 for non-phishing and 1 for phishing.
+
+
+SELECT
+ COUNT(*) - COUNT(url_length) AS missing_url_length,
+ COUNT(*) - COUNT(n_redirection) AS missing_redirections
+FROM `phishing-473204.Phishing.webpage_phishing`;
+SELECT
+ DISTINCT phishing
+FROM `phishing-473204.Phishing.webpage_phishing`;
+There were only 2 values as they stated: 0 and 1. This meant that there wouldn’t be issues with an added space or minor typo that needed to be fixed.
+Note: Given a lack of actual urls, and the vast diversity in urls that can have a lot of overlap, I am unable to see if there are duplicates within the data.
+Overall, the data was very clean, so I didn’t need to do anything with it.
+PROCESS: 
+SELECT
+ *
+FROM `phishing-473204.Phishing.webpage_phishing`
+WHERE
+ Phishing=1
+ORDER BY
+url_length ASC
+
+I filtered for phishing URLs to explore their structural differences from non-phishing URLs.
+
+SELECT
+ phishing,
+ COUNT(*) AS url_count,
+ AVG(url_length) AS avg_length,
+ MIN(url_length) AS min_length,
+ MAX(url_length) AS max_length
+FROM `phishing-473204.Phishing.webpage_phishing`
+GROUP BY phishing;
+
+
+Total rows: 
+100,077 based on URLs
+Not Phishing
+Total urls: 63,715
+Mean length: 23.59 
+Min length: 4 
+Max length: 557
+Phishing
+Total urls: 36,362	
+Mean length: 66.49	
+Min length: 5	
+Max length: 4165
+
+What this tells me is that shorter urls may be difficult to determine if they are phishing, but longer ones are more likely to be (the longer, the more likely it is phishing).
+
+ SELECT DISTINCT
+ phishing,PERCENTILE_CONT(url_length, 0.5) OVER (PARTITION BY phishing) AS median_length
+FROM
+`phishing-473204.Phishing.webpage_phishing`
+
+I calculated the median URL length to complement the mean and gain a more robust sense of central tendency. 
+Not Phishing: 20
+Phishing: 48
+
+This reinforced that phishing urls tend to be longer. 
+
+Note: over 50% of  the url lengths are below the average for Phishing while a little over 50% of the non-phishing urls are below the average. Though length is reinforced, it also shows that some phishing urls have the potential to be massive.
+
+SELECT
+ ROUND(100 * COUNTIF(phishing = 1 AND url_length > 50) / COUNTIF(url_length > 50), 2) AS pct_phishing_over_50
+FROM `phishing-473204.Phishing.webpage_phishing`;
+Looking deeper into the phishing, 83.18 of phishing urls had over 50 characters
+
+# ANALYZE: 
+
+SELECT
+ phishing, AVG(url_length) as average_length
+FROM `phishing-473204.Phishing.webpage_phishing`
+GROUP BY
+ phishing
+Looking at the grouping, I already notice that URL Length seems to have a larger connection (average length of the Phishing URL is almost 3x the non-phishing URL)
+
+SELECT
+ phishing,SUM(n_redirection) as redirect
+FROM `phishing-473204.Phishing.webpage_phishing`
+GROUP BY
+phishing
+
+Looking at the numbers, non-phishing URLs actually redirected almost twice as often as phishing URLs, telling us that redirection is not an indicator of phishing.
+
+SELECT
+ phishing,SUM(n_dots) as dots, SUM(n_hypens) as hypens, SUM(n_underline) as underlines, SUM(n_slash) as slash, SUM(n_questionmark) as questionmark, SUM(n_equal) as equal, SUM(n_at) as at_sum, SUM(n_and) as and_count, SUM(n_exclamation) as exclamation, SUM(n_space) as space, SUM(n_tilde) as tilde, SUM(n_comma) as comma, SUM(n_plus) as plus, SUM(n_asterisk) as asterisk, SUM(n_hastag) as hashtag, SUM(n_dollar) as dollar, SUM(n_percent) as percent
+FROM `phishing-473204.Phishing.webpage_phishing`
+GROUP BY
+phishing
+Looking through every type of symbol found in the url to determine what could be an indicator of phishing. 
+Dots, hyphens, spaces, and percentages didn’t seem to have any correlation since the numbers were so similar. 
+Exclamations, tildes, commas, and plus showed more often in phishing, but there weren’t enough instances in either version to be conclusive (both had under 500 instances combined while also showing up in both).
+These symbols showed up more often in phishing (with enough instances): Underlines over 3x, slashes almost 5x,question marks over 10x, equal almost 12x as often, at symbol over 1100x, & over 16x
+These symbols were exclusive to phishing (meaning non-phishing emails in that set didn’t have any instances of these showing up): Asterisks showed up 410 times, Hashtags 45 times, and dollar signs 190.
+
+
+# RECOMMENDATIONS: 
+After analyzing a cleaned data set with 100,077 rows and 20 columns, below are the recommendations I have for people determining if something is a phishing attempt or not.
+Always look at the URL length to help determine whether it is phishing. On average, longer urls tend to more likely be phishing.
+If there is a symbol that seems highly uncommon for a url, it may be phishing (i.e.  @, &, *, #, $)
+Note that the existence of symbols or length doesn’t automatically discount it as phishing. The minimum in the sample for phishing was 5 while non-phishing was 4, so also keep in mind all the other safety tips regarding internet safety. 
+Make sure the sender is a trusted individual
+Look them up if needed
+Make sure that the contents of the email make sense for the sender
+Make sure that the contents of the email match with your expectations (were you expecting a report? Were you waiting for information on a product or service?)
+Make sure the URL looks like it goes to where it says it goes
+
+# LIMITATIONS:
+This dataset does not include contextual information about the URL (e.g., domain reputation or hosting details), which could further improve phishing detection.
+Feature correlations may differ in real-world data, especially over time or in targeted phishing attempts. This data was from 2020 and a lot can change in tech and the internet over the course of 5 years.
+Some rare symbols appear exclusively in phishing URLs, but with the ever expanding instances of phishing emails and links, and with the continuous growth of AI, this sample size was too small to be conclusive which means they should be interpreted cautiously.
